@@ -3,3 +3,6 @@
 ################################################################################
 
 /MergeExcel/bin/Debug
+/MergeExcel/obj/Debug
+/packages
+/.vs/MergeExcel/v15
