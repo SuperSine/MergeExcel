@@ -13,21 +13,33 @@ namespace MergeExcel
 {
     class Options
     {
-        [Option('f', "files", Required = false, HelpText = "需要合并的文件")]
-        public IEnumerable<string> InputFiles { get; set; }
 
         [Option('F', "folder", Required = true, HelpText = "需要合并的文件夹路径")]
         public string Folder { get; set; }
 
-        [Option('t', "titles", Required = true, HelpText = "需要合并的字段")]
-        public IEnumerable<string> Titles { get; set; }
+        [Option('o', "output", Required = true, HelpText = "合并后的文件路径")]
+        public string OutputPath { get; set; }
+
+        [Option('h', "header", Required = true, HelpText = "需要合并的字段")]
+        public IEnumerable<string> Headers { get; set; }
+
+        [Option('f', "files", Required = false, HelpText = "需要合并的文件")]
+        public IEnumerable<string> InputFiles { get; set; }
+        
     }
 
     class Program
     {
         static void Main(string[] args)
         {
-            CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(opts => main(opts));
+            try
+            {
+                CommandLine.Parser.Default.ParseArguments<Options>(args).WithParsed<Options>(opts => main(opts));
+                Console.ReadLine();
+            }catch(Exception ex)
+            {
+                Console.WriteLine(ex.ToString());
+            }
 
             /*
             DataTable dt = new DataTable();
@@ -43,18 +55,27 @@ namespace MergeExcel
         private static void main(Options options)
         {
             string[] files;
+            DataTable dt = new DataTable();
+
             if (options.InputFiles.Count() > 0)
             {
                 files = options.InputFiles.ToArray();
-            }else if (!string.IsNullOrEmpty(options.Folder))
+            }else
             {
                 files = Directory.GetFiles(options.Folder, "*.xlsx");
             }
 
+            for (int i = 0; i < files.Length; i++)
+            {
+                Console.WriteLine("{0}. 合并：{1}",(i + 1), files[i]);
+                MergeData(files[i], dt, options.Headers.ToArray());
+            }
 
+            Console.WriteLine("生成：{0}", options.OutputPath);
+            ExportDataTableToExcel(dt, options.OutputPath);
         }
 
-        private static void MergeData(string path, DataTable dt, string[] titles)
+        private static void MergeData(string path, DataTable dt, string[] headers)
         {
             // write data in workbook from xls document.
             XSSFWorkbook workbook = new XSSFWorkbook(path);
@@ -69,11 +90,11 @@ namespace MergeExcel
             {
 
                 // build header for there is no data after the first implementation
-                for (int i = 0; i < titles.Length; i++)
+                for (int i = 0; i < headers.Length; i++)
                 {
                     
                     // get data as the column header of DataTable
-                    DataColumn column = new DataColumn(titles[i]);
+                    DataColumn column = new DataColumn(headers[i]);
 
                     dt.Columns.Add(column);
                 }
@@ -85,36 +106,72 @@ namespace MergeExcel
             }
             // LastRowNum is the number of rows of current table
             int rowCount = sheet.LastRowNum + 1;
+            var colsIndexMapper = GetColsIndexMapper(headers, sheet);
+            var colsIndexArray = colsIndexMapper.Values.ToArray();
             for (int i = (sheet.FirstRowNum + 1); i < rowCount; i++)
             {
                 XSSFRow row = (XSSFRow)sheet.GetRow(i);
+
+                bool isEmptyRow = !row.Any(e => colsIndexArray.Contains(e.ColumnIndex) && !string.IsNullOrEmpty(e.StringCellValue));
+
+                if (isEmptyRow) continue;
+
                 DataRow dataRow = dt.NewRow();
-                for (int j = row.FirstCellNum; j < cellCount; j++)
+
+                for (var j = 0; j < headers.Length; ++j)
                 {
-                    if (row.GetCell(j) != null)
-                        // get data and convert them into character string type, then save them into the rows of datatable
-                        dataRow[j] = row.GetCell(j).ToString();
+                    var titleIndex = colsIndexMapper[headers[j]];
 
+                    if(row.GetCell(titleIndex) != null && !string.IsNullOrEmpty(row.GetCell(titleIndex).ToString()))
+                    {
+                        dataRow[titleIndex] = row.GetCell(titleIndex).ToString();
 
+                    }
                 }
+                /*
+                    for (int j = row.FirstCellNum; j < cellCount; j++)
+                    {
+                        if (row.GetCell(j) != null)
+                            // get data and convert them into character string type, then save them into the rows of datatable
+                            dataRow[j] = row.GetCell(j).ToString();
+
+
+                    }
+                 * */
                 dt.Rows.Add(dataRow);
             }
             workbook = null;
             sheet = null;
         }
 
-        public Dictionary<string,int> GetColsIndexMapper(string[] titles, XSSFSheet xSSFSheet)
+        public static Dictionary<string,int> GetColsIndexMapper(string[] titles, XSSFSheet xSSFSheet)
         {
-            return null;
+            var dict = new Dictionary<string, int>();
+            XSSFRow headerRow = (XSSFRow)xSSFSheet.GetRow(xSSFSheet.FirstRowNum);
+
+            foreach(var title in titles)
+            {
+                for(var i = headerRow.FirstCellNum; i < headerRow.LastCellNum;++i)
+                {
+                    var headerName = headerRow.GetCell(i).ToString().Trim();
+
+                    if (title == headerName)
+                        dict[title] = i;
+                    
+                }
+
+            }
+
+            return dict;
         }
 
         public static void ExportDataTableToExcel(DataTable dtSource, string strFileName)
         {
-            // create workbook
+
             XSSFWorkbook workbook = new XSSFWorkbook();
-            // the table named mySheet
+
             XSSFSheet sheet = (XSSFSheet)workbook.CreateSheet("mySheet");
-            // create the first row
+
             XSSFRow dataRow = (XSSFRow)sheet.CreateRow(0);
             foreach (DataColumn column in dtSource.Columns)
             {
@@ -136,7 +193,7 @@ namespace MergeExcel
                 using (FileStream fs = new FileStream(strFileName, FileMode.Create, FileAccess.Write))
                 {
 
-                    workbook.Write(fs);// write mySheet table in xls document and save it
+                    workbook.Write(fs);
                 }
             }
         }
