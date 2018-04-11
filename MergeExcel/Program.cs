@@ -14,16 +14,16 @@ namespace MergeExcel
     class Options
     {
 
-        [Option('F', "folder", Required = true, HelpText = "需要合并的文件夹路径")]
+        [Option('F', "folder", Required = true, HelpText = @"需要合并文件所在的文件夹路径")]
         public string Folder { get; set; }
 
-        [Option('o', "output", Required = true, HelpText = "合并后的文件路径")]
+        [Option('o', "output", Required = true, HelpText = @"合并后的文件路径")]
         public string OutputPath { get; set; }
 
-        [Option('h', "header", Required = true, HelpText = "需要合并的字段")]
+        [Option('h', "headers", Required = true, HelpText = @"需要合并的字段")]
         public IEnumerable<string> Headers { get; set; }
 
-        [Option('f', "files", Required = false, HelpText = "需要合并的文件")]
+        [Option('f', "files", Required = false, HelpText = @"需要合并的文件")]
         public IEnumerable<string> InputFiles { get; set; }
         
     }
@@ -62,7 +62,7 @@ namespace MergeExcel
                 files = options.InputFiles.ToArray();
             }else
             {
-                files = Directory.GetFiles(options.Folder, "*.xlsx");
+                files = Directory.GetFiles(options.Folder, "*.xlsx", SearchOption.AllDirectories);
             }
 
             for (int i = 0; i < files.Length; i++)
@@ -169,7 +169,7 @@ namespace MergeExcel
         {
 
             XSSFWorkbook workbook = new XSSFWorkbook();
-
+            
             XSSFSheet sheet = (XSSFSheet)workbook.CreateSheet("mySheet");
 
             XSSFRow dataRow = (XSSFRow)sheet.CreateRow(0);
